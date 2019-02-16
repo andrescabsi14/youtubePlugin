@@ -37,3 +37,6 @@ test/assets/bower_components
 #coverage folder
 test/coverage
 
+.cache
+youtubePlugin_release
+.DS_Store

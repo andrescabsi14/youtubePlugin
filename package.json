@@ -3,8 +3,10 @@
   "version": "0.0.1",
   "supportSite": "http://learn.appdocumentation.com/plugin-tutorials/youtube-plugin-tutorial",
   "scripts": {
-    "postinstall": "./node_modules/.bin/bower install",
-    "start": "gulp build",
+    "dev": "parcel ./control/content/index.html ./control/design/index.html ./control/settings/index.html ./widget/index.html -p 8080 --out-dir ./youtubePlugin_release/ && cp plugin.json youtubePlugin_release/",
+    "buildd": "parcel build ./control/content/index.html ./control/design/index.html ./control/settings/index.html ./widget/index.html --out-dir ./youtubePlugin_release/ && cp plugin.json youtubePlugin_release/",
+    "start": "npm run dev && npm run start:conf",
+    "start:conf": "cp ./plugin.json youtubePlugin_release/",
     "build": "gulp build && cd .. && rm -rf youtubePlugin.zip && zip -r youtubePlugin.zip youtubePlugin_release/",
     "test": "./node_modules/.bin/karma start --single-run --browsers PhantomJS"
   },
@@ -59,6 +61,9 @@
     "karma-mocha": "^0.2.0",
     "karma-phantomjs-launcher": "^0.2.0",
     "mocha": "^2.2.5",
+    "parcel-bundler": "^1.11.0",
+    "parcel-plugin-bundle-manifest": "^0.2.0",
+    "parcel-plugin-clean-dist": "0.0.6",
     "phantomjs": "^1.9.17",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0"
