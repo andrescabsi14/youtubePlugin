@@ -2,7 +2,8 @@ const gulp = require("gulp");
 const notify = require("gulp-notify");
 const plumber = require("gulp-plumber");
 const del = require("del");
-const babel = require("gulp-babel");
+const babelify = require("babelify");
+const browserify = require("browserify");
 const minHTML = require("gulp-htmlmin");
 const minifyCSS = require("gulp-csso");
 const concat = require("gulp-concat");
@@ -12,6 +13,15 @@ const eslint = require("gulp-eslint");
 const imagemin = require("gulp-imagemin");
 const gulpSequence = require("gulp-sequence");
 const minifyInline = require("gulp-minify-inline");
+const source = require("vinyl-source-stream");
+const buffer = require("vinyl-buffer");
+const rename = require("gulp-rename");
+const gulpif = require("gulp-if");
+const options = require("gulp-options");
+const stripDebug = require("gulp-strip-debug");
+const sourcemaps = require("gulp-sourcemaps");
+const browserSync = require("browser-sync").create();
+const rev = require("gulp-rev");
 
 const destinationFolder = releaseFolder();
 
@@ -23,6 +33,8 @@ function releaseFolder() {
 }
 
 console.log(">> Building to ", destinationFolder);
+
+const bundleVersion = "?v=" + new Date().getTime();
 
 const cssTasks = [
   { name: "widgetCSS", src: "widget/**/*.css", dest: "/widget" },
@@ -64,20 +76,20 @@ cssTasks.forEach(function(task) {
 });
 
 const jsTasks = [
-  { name: "widgetJS", src: "widget/**/*.js", dest: "/widget" },
+  { name: "widgetJS", src: "widget/app.js", dest: "/widget" },
   {
     name: "controlContentJS",
-    src: "control/content/**/*.js",
+    src: "control/content/app.js",
     dest: "/control/content"
   },
   {
     name: "controlDesignJS",
-    src: "control/design/**/*.js",
+    src: "control/design/app.js",
     dest: "/control/design"
   },
   {
     name: "controlSettingsJS",
-    src: "control/settings/**/*.js",
+    src: "control/settings/index.js",
     dest: "/control/settings"
   }
 ];
@@ -118,8 +130,44 @@ gulp.task("lint", () => {
 
 jsTasks.forEach(function(task) {
   gulp.task(task.name, function() {
-    return gulp
-      .src(task.src, { base: "." })
+    return browserify({
+      entries: [task.src]
+    })
+      .transform(babelify, { presets: ["@babel/preset-env"] })
+      .bundle()
+      .pipe(source(task.src))
+      .pipe(
+        rename({
+          extname: ".min.js"
+        })
+      )
+      .pipe(buffer())
+      .pipe(rev())
+      .pipe(gulpif(options.has("production"), stripDebug()))
+      .pipe(sourcemaps.init({ loadMaps: true }))
+      .pipe(uglify())
+      .pipe(sourcemaps.write("."))
+      .pipe(gulp.dest(destinationFolder))
+      .pipe(browserSync.stream());
+  });
+});
+
+gulp.task("clean", function() {
+  return del([destinationFolder], { force: true });
+});
+
+gulp.task("html", function() {
+  return (
+    gulp
+      .src(
+        [
+          "widget/**/*.html",
+          "widget/**/*.htm",
+          "control/**/*.html",
+          "control/**/*.htm"
+        ],
+        { base: "." }
+      )
       .pipe(
         plumber({
           errorHandler: function(err) {
@@ -130,54 +178,16 @@ jsTasks.forEach(function(task) {
           }
         })
       )
-      .pipe(
-        babel({
-          presets: ["@babel/env"]
-        })
-      )
-      .pipe(uglify())
-      .pipe(concat("scripts.min.js"))
-      .pipe(gulp.dest(destinationFolder + task.dest));
-  });
-});
-
-gulp.task("clean", function() {
-  return del([destinationFolder], { force: true });
-});
-
-gulp.task("html", function() {
-  return gulp
-    .src(
-      [
-        "widget/**/*.html",
-        "widget/**/*.htm",
-        "control/**/*.html",
-        "control/**/*.htm"
-      ],
-      { base: "." }
-    )
-    .pipe(
-      plumber({
-        errorHandler: function(err) {
-          notify.onError({
-            title: "Gulp error in " + err.plugin,
-            message: err.toString()
-          })(err);
-        }
-      })
-    )
-    .pipe(
-      htmlReplace({
-        js: {
-          src: "scripts.min.js?v=" + new Date().getTime(),
-          tpl: '<script src="%s"></script>'
-        },
-        css: "styles.min.css?v=" + new Date().getTime()
-      })
-    )
-    .pipe(minHTML({ removeComments: true, collapseWhitespace: true }))
-    .pipe(minifyInline())
-    .pipe(gulp.dest(destinationFolder));
+      // .pipe(
+      //   htmlReplace({
+      //     bundleJSFiles: "./scripts.min.js" + bundleVersion,
+      //     bundleCSSFiles: "./styles.min.css" + bundleVersion
+      //   })
+      // )
+      .pipe(minHTML({ removeComments: true, collapseWhitespace: true }))
+      .pipe(minifyInline())
+      .pipe(gulp.dest(destinationFolder))
+  );
 });
 
 gulp.task("resources", function() {
